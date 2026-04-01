@@ -1,49 +1,41 @@
 import pandas as pd
 import joblib
+import numpy as np
 
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, VotingRegressor
 from sklearn.preprocessing import StandardScaler
-
+from sklearn.neural_network import MLPRegressor
 from xgboost import XGBRegressor
-
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
 
 # -------------------
 # โหลดข้อมูล
 # -------------------
 df = pd.read_csv("data/train.csv")
 
-# แยก target
-y = df["SalePrice"]
-X = df.drop("SalePrice", axis=1)
+# 🔥 ใช้เฉพาะ feature สำคัญ
+features = ["LotArea", "OverallQual", "YearBuilt", "GrLivArea", "GarageCars"]
+
+X = df[features]
+y = np.log1p(df["SalePrice"])
 
 # -------------------
 # เตรียมข้อมูล
 # -------------------
+X = X.fillna(X.mean())
 
-# จัดการ missing
-X = X.fillna(X.mean(numeric_only=True))
+joblib.dump(features, "models/columns.pkl")
 
-# แปลง categorical
-X = pd.get_dummies(X)
-
-# 🔥 เก็บ column names ไว้ใช้ตอน test (สำคัญมาก)
-joblib.dump(X.columns, "models/columns.pkl")
-
-# scale
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-# 🔥 save scaler ด้วย
 joblib.dump(scaler, "models/scaler.pkl")
 
 # -------------------
 # Ensemble Model
 # -------------------
-rf = RandomForestRegressor()
-gb = GradientBoostingRegressor()
-xgb = XGBRegressor()
+rf = RandomForestRegressor(random_state=42)
+gb = GradientBoostingRegressor(random_state=42)
+xgb = XGBRegressor(random_state=42)
 
 ensemble = VotingRegressor([
     ('rf', rf),
@@ -52,24 +44,20 @@ ensemble = VotingRegressor([
 ])
 
 ensemble.fit(X_scaled, y)
-
 joblib.dump(ensemble, "models/ensemble_model.pkl")
 
 # -------------------
-# Neural Network
+# Neural Network (นิ่งแน่นอน)
 # -------------------
-nn = Sequential([
-    Dense(128, activation='relu', input_shape=(X_scaled.shape[1],)),
-    Dense(64, activation='relu'),
-    Dense(1)
-])
+nn = MLPRegressor(
+    hidden_layer_sizes=(16, 8),   # 🔥 เล็กลงมาก
+    learning_rate_init=0.001,
+    max_iter=2000,
+    early_stopping=True,
+    random_state=42
+)
 
-nn.compile(optimizer='adam', loss='mse')
+nn.fit(X_scaled, y)
+joblib.dump(nn, "models/nn_model.pkl")
 
-nn.fit(X_scaled, y, epochs=20, batch_size=32)
-
-nn.save("models/nn_model.h5")
-
-print("Train เสร็จแล้ว!")
-print("✅ ถึงขั้นตอน save columns แล้ว")
-joblib.dump(X.columns, "models/columns.pkl")
+print("✅ Train เสร็จแล้ว (เวอร์ชันเสถียร)")

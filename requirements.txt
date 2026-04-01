@@ -3,4 +3,3 @@ scikit-learn
 xgboost
 streamlit
 joblib
-tensorflow==2.12.0
